@@ -1,5 +1,5 @@
 # mipower
-小米智能插座的控制器貌似坏掉了  
+小米智能插座的控制器貌似坏掉了，怎么也连不上。  
 ![图片](https://github.com/www-w/mipower/blob/master/img/e.jpg)
 于是用一片古老闲置STC12C4052AD控制  
 ![图片](https://github.com/www-w/mipower/blob/master/img/d.jpg)
