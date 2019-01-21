@@ -7,7 +7,7 @@ irtest.bin:build/irtest.ihx
 #build/irtest.hex:build/irtest.ihx
 #	packihx build/irtest.ihx > build/irtest.hex
 
-build/irtest.ihx:
+build/irtest.ihx:irtest.c
 	sdcc -o build/ irtest.c
 
 clean:

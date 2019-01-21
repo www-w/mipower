@@ -10,8 +10,15 @@ void main(void){
 	// INit UART Serial Port
 	
 	SCON = 0x40;
-	TH1 = 0xFF; //28800
+	//TH1 = 0xFF; //28800
+	TH1 = 243; //2400
 	TR1 = 1;
+	
+	while(1){
+	SBUF=0x56;
+	while(!TI);
+	TI=0;
+	}
 	
 
 	
@@ -32,7 +39,7 @@ void main(void){
 	buffer[buffer_head] = TL0;
 	buffer_head++;
 		// fill 4 bytes in buffer per routin
-		if(buffer_head == 200 || TH0>=0xFF) { // check if buffer full, or button release event 
+		if(buffer_head == 200 || TH0==0xFF) { // check if buffer full, or button release event 
 			// send to uart and reset buffer
 			buffer_head = 0;
 			for(;buffer_head < 200; buffer_head++){
