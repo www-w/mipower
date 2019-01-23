@@ -1,2 +1,4 @@
 irtest/build/*
 irtest/*.bin
+build/*
+*.bin
