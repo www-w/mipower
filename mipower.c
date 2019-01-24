@@ -1,29 +1,13 @@
-#include "config.h"
-#include <stdint.h>
+#include "mipower.h"
 
-// #define DEBUG // 串口输出红外编码数据
+unionulong irdata; // Store received irdata
+uint32_t ms50 = 0; // Timer 50ms countdown
 
-#define LED P1_2
-
-//红外编码数据
-//引导：9ms_04.7ms_1
-//逻辑0: 0.5ms_0.5ms- 逻辑1：0.5ms_1.7ms-
-//8位厂商码+8位反码
-//8位数据+8位反码
-typedef union{
-	uint32_t int32;
-	uint8_t int8[4];
-} unionulong;
-
-#define BTNRED 0x1CE3926D
-#define BTNGRE 0x1CE352AD
-#define BTNYEL 0x1CE3D22D
-#define BTNBLU 0x1CE332CD
-
-unionulong irdata;
-
-
-
+uint8_t ledmode = 0;
+#define LED1 1
+#define LED2 2
+#define LED3 3
+#define LED4 4
 void tryGetIr(){
 	uint8_t i;
 	if(IRPIN){return;}; // no signal
@@ -56,12 +40,27 @@ void tryGetIr(){
 	SBUF = irdata.int8[0];
 	while(!TI);TI=0;
 #endif
+	// code recieved do someting here.
 	switch(irdata.int32){
 		case BTNRED:
-			LED = 0;
+			ms50 = MINUTES(30L);
+			POWER = 1;
+			ledmode = LED1;
 			break;
 		case BTNGRE:
-			LED = 1;
+			ms50 = MINUTES(60L);
+			POWER = 1;
+			ledmode = LED2;
+			break;
+		case BTNYEL:
+			ms50 = MINUTES(90L);
+			POWER = 1;
+			ledmode = LED3;
+			break;
+		case BTNBLU:
+			ms50 = MINUTES(120L);
+			POWER = 1;
+			ledmode = LED4;
 			break;
 	}
 	TR0 = 0;TH0 = TL0 = 0;
@@ -69,18 +68,28 @@ void tryGetIr(){
 
 }
 
-uint8_t ms50 = 0;
 
 void isrPCA(void) __interrupt 6
 {
-	CH=CL=0;
-	ms50++;
-	if(ms50 == 20){
-
+	CH = CL = 0;	// restart 50ms timer
+	CCF0 = 0;	// clear interrupt flag
+	if(ms50 == 0){
+		// didn't start 
+		return;
+	}
+	ms50--;
+	if(ms50 == 0){
+		// time over 
+		// do release relay power
+		POWER = 0;
 	}
 }
 
+
 void main(void){
+	uint8_t softpwm = 0;
+ 	volatile uint8_t ledlight= 128;
+	uint16_t softtimer=0;
 	TMOD = 0x21; // 16bit reload mode timer0; 8bit autoreload timer1
 	TH0 = 0; TL0 = 0; // init t0
 
@@ -97,12 +106,50 @@ void main(void){
 #endif
 
 	// Init PCA timer
-	CCAPM0 = 0x49; // 01001001 soft timer;
+	CCON = 0;
+	CL = 0; CH = 0;
+	CMOD = 0;
 	CCAP0H = 0xC3; CCAP0L = 0x50; // 50ms
-	EA = 1;
+	CCAPM0 = 0x49; // 01001001 soft timer;
 	CR = 1; // start
+	IE |= 0x40;	// EPCA_LVD = 1;
+	EA = 1;
+
+	// Init Control IO
+	POWER = 0; // default disconnect
+	// P1.7 220V P1.6 USB5V
+	P1M0 = 0xC0;	//推挽输出 P1.7 P1.6
+	int8_t a=1;
 	
 	while(1){
 		tryGetIr();
+		if(0 == ledmode && (ms50>MINUTES(5L) || ms50 == 0))continue;
+		softtimer++;
+		if(softtimer == 0x1FF){
+			ledlight += a;
+			if(ledlight == 255) a=-1;
+			if(ledlight == 0) {
+				if(ledmode)ledmode--;
+				a=1;
+			}
+			softtimer = 0;
+		}
+
+		softpwm++;	//0~255
+		if(ledlight == 0){
+			LED = 1;
+			continue;	// dark led
+		}
+		if(ledlight == 255){
+			LED = 0;
+			continue;	// full pwm
+		}
+		// softpwm=[0-255] ledlight=[1-254]
+		if(softpwm < ledlight){
+			LED = 0;	// turn on
+		}else{
+			LED = 1;	// turn off
+		}
+
 	}
 }
