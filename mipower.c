@@ -11,13 +11,16 @@ uint8_t ledmode = 0;
 void tryGetIr(){
 	uint8_t i;
 	if(IRPIN){return;}; // no signal
+	
+	EA = 0; // disable all interrupt 
+
 	TR0=1;	// enter counting low level time
 
 	while((!IRPIN) && TH0 < 0xFF); // 0xFEFF = 65279 means 65ms under 12MHz
-	if(TH0 < 0x1E){TR0=0;return;}; // expect 9ms >=7.68ms
+	if(TH0 < 0x1E){TR0=0;EA = 1;return;}; // expect 9ms >=7.68ms
 	TH0 = 0; TL0 = 0; //reset timer0
 	while(IRPIN && TH0 < 0xFF); // counting high level timer
-	if(TH0 < 0x0B){TR0=0;return;}; // expect 4.5ms >=2.8ms
+	if(TH0 < 0x0B){TR0=0;EA = 1;return;}; // expect 4.5ms >=2.8ms
 	for(i=0;i<32;i++){ // receive 32bit data
 		irdata.int32 <<= 1;
 		TH0 = 0; TL0 = 0; // reset timer0
@@ -30,6 +33,7 @@ void tryGetIr(){
 			// 0
 		}
 	}
+	EA = 1;	// data received, enable any interrupt
 #ifdef DEBUG
 	SBUF = irdata.int8[3];
 	while(!TI);TI=0;
@@ -82,6 +86,7 @@ void isrPCA(void) __interrupt 6
 		// time over 
 		// do release relay power
 		POWER = 0;
+		LED = 1;
 	}
 }
 
