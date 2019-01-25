@@ -3,7 +3,7 @@
 unionulong irdata; // Store received irdata
 uint32_t ms50 = 0; // Timer 50ms countdown
 
-uint8_t ledmode = 0;
+uint8_t ledcounter = 0;
 #define LED1 1
 #define LED2 2
 #define LED3 3
@@ -48,23 +48,19 @@ void tryGetIr(){
 	switch(irdata.int32){
 		case BTNRED:
 			ms50 = MINUTES(30L);
-			POWER = 1;
-			ledmode = LED1;
+			ledcounter = LED1;
 			break;
 		case BTNGRE:
 			ms50 = MINUTES(60L);
-			POWER = 1;
-			ledmode = LED2;
+			ledcounter = LED2;
 			break;
 		case BTNYEL:
 			ms50 = MINUTES(90L);
-			POWER = 1;
-			ledmode = LED3;
+			ledcounter = LED3;
 			break;
 		case BTNBLU:
 			ms50 = MINUTES(120L);
-			POWER = 1;
-			ledmode = LED4;
+			ledcounter = LED4;
 			break;
 	}
 	TR0 = 0;TH0 = TL0 = 0;
@@ -86,25 +82,28 @@ void isrPCA(void) __interrupt 6
 		// time over 
 		// do release relay power
 		POWER = 0;
-		LED = 1;
+	}else{
+		POWER = 1;
 	}
 }
 
 
 void main(void){
 	uint8_t softpwm = 0;
+	int8_t softpwm_dir = 1;	// +1 or -1
  	volatile uint8_t ledlight= 128;
-	uint16_t softtimer=0;
+	uint8_t softtimer=0;
+
 	TMOD = 0x21; // 16bit reload mode timer0; 8bit autoreload timer1
 	TH0 = 0; TL0 = 0; // init t0
 
+#ifdef DEBUG
 	// INit UART Serial Port
 	
 	SCON = 0x40;
 	TH1 = 243; //2400
 	TL1 = TH1;
 	TR1 = 1;
-#ifdef DEBUG
 	SBUF=0x56;
 	while(!TI);
 	TI=0;
@@ -124,37 +123,32 @@ void main(void){
 	POWER = 0; // default disconnect
 	// P1.7 220V P1.6 USB5V
 	P1M0 = 0xC0;	//推挽输出 P1.7 P1.6
-	int8_t a=1;
 	
 	while(1){
-		tryGetIr();
-		if(0 == ledmode && (ms50>MINUTES(5L) || ms50 == 0))continue;
-		softtimer++;
-		if(softtimer == 0x1FF){
-			ledlight += a;
-			if(ledlight == 255) a=-1;
-			if(ledlight == 0) {
-				if(ledmode)ledmode--;
-				a=1;
+		for(softtimer = 0; softtimer < 2; softtimer ++) {
+
+			for (softpwm = 0;softpwm<255;softpwm++){	// 0~254
+				tryGetIr();
+				if(ledlight>softpwm){
+					LED = 0;
+				}else{
+					LED = 1;
+				}
+
 			}
-			softtimer = 0;
 		}
-
-		softpwm++;	//0~255
-		if(ledlight == 0){
-			LED = 1;
-			continue;	// dark led
-		}
-		if(ledlight == 255){
-			LED = 0;
-			continue;	// full pwm
-		}
-		// softpwm=[0-255] ledlight=[1-254]
-		if(softpwm < ledlight){
-			LED = 0;	// turn on
+		if( ledcounter || ( ms50 != 0 && ms50 < MINUTES(5L) )) //ledEnabled
+		{
+			ledlight += softpwm_dir;
+			if(ledlight == 255) softpwm_dir=-1;
+			if(ledlight == 0) {
+				if(ledcounter){	// 从亮到暗为一个闪烁循环
+					ledcounter--;	// 闪到指定次数后熄灭LED
+				}
+				softpwm_dir=1;
+			}
 		}else{
-			LED = 1;	// turn off
+			ledlight = 0;
 		}
-
 	}
 }
